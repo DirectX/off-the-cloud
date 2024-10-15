@@ -66,13 +66,12 @@ pub async fn pull(config: &Config, email: String, password: String, mailbox: Str
                     .context("message was not valid utf-8")?
                     .as_bytes();
                 out_file.write(body).context("error writing data to file")?;
+                out_file.write("\r\n\r\n".as_bytes()).context("error writing data to file")?;
                 log::debug!("{} bytes message added", body.len());
             }
         }
 
         message_id += 100;
-
-        break;
     }
 
     out_file.flush().context("error flushing file")?;
