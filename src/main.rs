@@ -36,7 +36,6 @@ async fn run() -> anyhow::Result<()> {
                     &config,
                     imap_pull_subcommand.email,
                     imap_pull_subcommand.password,
-                    imap_pull_subcommand.mailbox,
                     imap_pull_subcommand.out_dir,
                     parse_size::parse_size(&imap_pull_subcommand.max_file_size).context(
                         format!(
