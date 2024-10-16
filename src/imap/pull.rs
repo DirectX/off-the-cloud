@@ -1,5 +1,6 @@
 use anyhow::Context;
 use futures::TryStreamExt;
+use melib::mbox::{MboxFormat, MboxMetadata};
 use std::{
     env::current_dir,
     fs::{self, File},
@@ -33,16 +34,18 @@ pub async fn pull(
     let tls_stream = tls.connect(&imap_addr.0, tcp_stream).await?;
 
     let client = async_imap::Client::new(tls_stream);
-    println!("Connected to IMAP server {}:{}", imap_addr.0, imap_addr.1);
+    log::debug!("Connected to IMAP server {}:{}", imap_addr.0, imap_addr.1);
 
     let mut imap_session = client.login(&email, &password).await.map_err(|e| e.0)?;
-    println!("Logged in as {}", email);
+    log::debug!("Logged in as {}", email);
 
     let mailbox_stream = imap_session
         .list(None, Some("*"))
         .await
         .context("error getting mailbox listt")?;
     let mailboxes: Vec<_> = mailbox_stream.try_collect().await?;
+
+    log::debug!("Loaded {} mailboxes", mailboxes.len());
 
     for mailbox in mailboxes {
         let mailbox_name = mailbox.name();
@@ -59,7 +62,8 @@ pub async fn pull(
         let folder_name = format!("{out_dir}/{email}/{mailbox_readable_name}",);
         fs::create_dir_all(&folder_name)?;
 
-        let mut message_id = 7000u32;
+        let batch_size = 10;
+        let mut message_id = 1u32;
         let mut bytes_written = 0u64;
 
         let mut part_id = 1;
@@ -81,11 +85,12 @@ pub async fn pull(
         log::debug!("Max file size: {max_file_size}");
 
         // let mut out_file = File::create(file_path).context("Unable to open file")?;
-        let mut mbox_writer = MboxWriter::new(file_path, max_file_size).context("failed to create mbox file")?;
+        // let mut mbox_writer = MboxWriter::new(file_path, max_file_size).context("failed to create mbox file")?;
+        let file = File::create(file_path).context("file creation error")?;
+        let mut writer = std::io::BufWriter::new(file);
 
         loop {
-            let sequence_set = format!("{message_id}");
-
+            let sequence_set = format!("{message_id}:{}", message_id + batch_size - 1);
             log::debug!("Querying {sequence_set}");
 
             let messages_stream = imap_session
@@ -101,12 +106,27 @@ pub async fn pull(
                 for message in messages {
                     // let envelope = message.envelope().context("error getting envelope")?;
                     let body = message.body().context("message did not have a body!")?;
-                    let body_str = std::str::from_utf8(body.clone()).context("message was not valid utf-8")?;
-                    log::info!("Body: {:?}", body_str);
+                    // let body_str = std::str::from_utf8(body.clone()).context("message was not valid utf-8")?;
+                    // log::info!("Body: {:?}", body_str);
                     let body = std::str::from_utf8(body)
                         .context("message was not valid utf-8")?
                         .as_bytes();
-                    let _ = mbox_writer.append(body)?;
+
+                    // let writer = writer.get_mut();
+
+                    let format = MboxFormat::MboxCl2;
+                    format.append(
+                        &mut writer,
+                        body,
+                        None,
+                        Some(melib::utils::datetime::now()),
+                        Default::default(),
+                        MboxMetadata::None,
+                        true,
+                        false,
+                    )?;
+
+                    // let _ = mbox_writer.append(body)?;
                     // out_file.write(body).context("error writing data to file")?;
                     // out_file
                     //     .write("\n\n".as_bytes())
@@ -115,11 +135,13 @@ pub async fn pull(
                 }
             }
 
-            break;
-            message_id += 100;
+            message_id += batch_size;
         }
 
+        writer.flush().context("error flushing writer")?;
+        // file.flush().context("error flushing file")?;
         // out_file.flush().context("error flushing file")?;
+        break;
     }
 
     imap_session.logout().await?;
