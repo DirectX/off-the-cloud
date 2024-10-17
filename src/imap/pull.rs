@@ -1,6 +1,5 @@
 use anyhow::Context;
 use futures::TryStreamExt;
-use melib::mbox::{MboxFormat, MboxMetadata};
 use std::{
     env::current_dir,
     fs::{self, File},
@@ -10,7 +9,7 @@ use std::{
 };
 use tokio::net::TcpStream;
 
-use crate::{config::Config, imap::mbox::MboxWriter};
+use crate::config::Config;
 
 pub async fn pull(
     config: &Config,
@@ -64,7 +63,7 @@ pub async fn pull(
 
         let batch_size = 10;
         let mut message_id = 1u32;
-        let mut bytes_written = 0u64;
+        let mut bytes_written = 0usize;
 
         let mut part_id = 1;
         let file_name = format!("part-{:0>4}.mbox", part_id);
@@ -84,12 +83,7 @@ pub async fn pull(
         log::debug!("Creating part {}", file_path.to_string_lossy());
         log::debug!("Max file size: {max_file_size}");
 
-        // let mut out_file = File::create(file_path).context("Unable to open file")?;
-        // let mut mbox_writer = MboxWriter::new(file_path, max_file_size).context("failed to create mbox file")?;
-        let file = File::create(file_path).context("file creation error")?;
-        let mut writer = std::io::BufWriter::new(file);
-
-        
+        let mut out_file = File::create(file_path).context("Unable to open file")?;
 
         loop {
             let sequence_set = format!("{message_id}:{}", message_id + batch_size - 1);
@@ -108,27 +102,10 @@ pub async fn pull(
                 let mut current_message_id = message_id;
 
                 for message in messages {
-                    // let envelope = message.envelope().context("error getting envelope")?;
                     let body = message.body().context("message did not have a body!")?;
-                    // let body_str = std::str::from_utf8(body.clone()).context("message was not valid utf-8")?;
-                    // log::info!("Body: {:?}", body_str);
                     let body = std::str::from_utf8(body)
                         .context("message was not valid utf-8")?
                         .as_bytes();
-
-                    // let writer = writer.get_mut();
-
-                    let format = MboxFormat::MboxCl2;
-                    format.append(
-                        &mut writer,
-                        body,
-                        None,
-                        Some(melib::utils::datetime::now()),
-                        Default::default(),
-                        MboxMetadata::None,
-                        true,
-                        false,
-                    )?;
 
                     let file_name = format!("{:0>8}.eml", current_message_id);
                     let file_path = if folder_name.clone().starts_with("/") {
@@ -142,19 +119,29 @@ pub async fn pull(
                             .join(folder_name.clone())
                             .join(file_name.clone())
                     };
-                    fs::write(file_path, body).context("unable to write file")?;
+                    fs::write(file_path, body)
+                        .context("unable to write file")
+                        .context("unable to save *.eml file")?;
+                    log::debug!("{} bytes eml message added", body.len());
 
                     let dt = chrono::Utc::now();
                     let timestamp = dt.format("%a %b %e %T %Y").to_string();
-                    log::info!("From MAILER-DAEMON {timestamp}");
+                    let prefix_string = format!("From MAILER-DAEMON {timestamp}\n");
+                    let prefix = prefix_string.as_bytes();
 
-                    // let _ = mbox_writer.append(body)?;
-                    // out_file.write("From MAILER-DAEMON Thu Oct 17 21:18:06 2024").context("unable to write file")?;
-                    // out_file.write(body).context("error writing data to file")?;
-                    // out_file
-                    //     .write("\n\n".as_bytes())
-                    //     .context("error writing data to file")?;
-                    log::debug!("{} bytes message added", body.len());
+                    let suffix_string = format!("\n\n");
+                    let suffix = suffix_string.as_bytes();
+
+                    out_file
+                        .write(prefix)
+                        .context("unable to write file prefix")?;
+                    out_file.write(body).context("error writing data to file")?;
+                    out_file
+                        .write(suffix)
+                        .context("unable to write file suffix")?;
+                    log::debug!("{} bytes message added", prefix.len() + body.len() + suffix.len());
+
+                    bytes_written += prefix.len() + body.len() + suffix.len();
 
                     current_message_id += 1;
                 }
@@ -164,9 +151,7 @@ pub async fn pull(
             break;
         }
 
-        // writer.flush().context("error flushing writer")?;
-        // file.flush().context("error flushing file")?;
-        // out_file.flush().context("error flushing file")?;
+        out_file.flush().context("error flushing file")?;
     }
 
     imap_session.logout().await?;
