@@ -89,6 +89,8 @@ pub async fn pull(
         let file = File::create(file_path).context("file creation error")?;
         let mut writer = std::io::BufWriter::new(file);
 
+        
+
         loop {
             let sequence_set = format!("{message_id}:{}", message_id + batch_size - 1);
             log::debug!("Querying {sequence_set}");
@@ -103,6 +105,8 @@ pub async fn pull(
                 log::debug!("No more messages");
                 break;
             } else {
+                let mut current_message_id = message_id;
+
                 for message in messages {
                     // let envelope = message.envelope().context("error getting envelope")?;
                     let body = message.body().context("message did not have a body!")?;
@@ -126,22 +130,43 @@ pub async fn pull(
                         false,
                     )?;
 
+                    let file_name = format!("{:0>8}.eml", current_message_id);
+                    let file_path = if folder_name.clone().starts_with("/") {
+                        PathBuf::from_str("/")
+                            .unwrap()
+                            .join(folder_name.clone())
+                            .join(file_name.clone())
+                    } else {
+                        current_dir()
+                            .unwrap()
+                            .join(folder_name.clone())
+                            .join(file_name.clone())
+                    };
+                    fs::write(file_path, body).context("unable to write file")?;
+
+                    let dt = chrono::Utc::now();
+                    let timestamp = dt.format("%a %b %e %T %Y").to_string();
+                    log::info!("From MAILER-DAEMON {timestamp}");
+
                     // let _ = mbox_writer.append(body)?;
+                    // out_file.write("From MAILER-DAEMON Thu Oct 17 21:18:06 2024").context("unable to write file")?;
                     // out_file.write(body).context("error writing data to file")?;
                     // out_file
                     //     .write("\n\n".as_bytes())
                     //     .context("error writing data to file")?;
                     log::debug!("{} bytes message added", body.len());
+
+                    current_message_id += 1;
                 }
             }
 
             message_id += batch_size;
+            break;
         }
 
-        writer.flush().context("error flushing writer")?;
+        // writer.flush().context("error flushing writer")?;
         // file.flush().context("error flushing file")?;
         // out_file.flush().context("error flushing file")?;
-        break;
     }
 
     imap_session.logout().await?;
