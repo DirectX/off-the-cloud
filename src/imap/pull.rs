@@ -7,7 +7,7 @@ use std::{
     path::PathBuf,
     str::FromStr,
 };
-use tokio::net::TcpStream;
+use tokio::{net::TcpStream, time::Instant};
 
 use crate::config::Config;
 
@@ -19,6 +19,8 @@ pub async fn pull(
     export_mbox: bool,
     max_file_size: usize,
 ) -> anyhow::Result<()> {
+    let start = Instant::now();
+
     let imap_config = config
         .imap
         .clone()
@@ -211,7 +213,7 @@ pub async fn pull(
 
     imap_session.logout().await?;
 
-    log::debug!("Done");
+    log::info!("Done in {:?}", start.elapsed());
 
     Ok(())
 }

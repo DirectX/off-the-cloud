@@ -2,7 +2,7 @@ use anyhow::Context;
 use args::{CommandType, OffTheCloudArgs};
 use clap::Parser;
 use config::Config;
-use imap::pull::pull;
+use imap::{pull::pull, push::push};
 
 pub mod args;
 pub mod config;
@@ -44,6 +44,15 @@ async fn run() -> anyhow::Result<()> {
                             imap_pull_subcommand.max_file_size
                         ),
                     )? as usize,
+                )
+                .await?
+            }
+            args::ImapSubcommand::Push(imap_push_subcommand) => {
+                push(
+                    &config,
+                    imap_push_subcommand.email,
+                    imap_push_subcommand.password,
+                    imap_push_subcommand.in_dir,
                 )
                 .await?
             }

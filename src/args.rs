@@ -23,6 +23,8 @@ pub struct ImapCommand {
 pub enum ImapSubcommand {
     /// Pulls data with IMAP protocol
     Pull(ImapPullSubcommand),
+    /// Pushes data with IMAP protocol
+    Push(ImapPushSubcommand),
 }
 
 #[derive(Debug, Args)]
@@ -34,9 +36,6 @@ pub struct ImapPullSubcommand {
     #[arg(long)]
     pub password: String,
     /// Output directory
-    #[arg(long, default_value = "INBOX")]
-    pub mailbox: String,
-    /// Output directory
     #[arg(long, default_value = "messages")]
     pub out_dir: String,
     /// Export messages in Mbox format
@@ -45,4 +44,17 @@ pub struct ImapPullSubcommand {
     /// Mbox file size limit in megabytes (applies only if --export-mbox is set)
     #[arg(long, default_value = "50 MB")]
     pub max_file_size: String,
+}
+
+#[derive(Debug, Args)]
+pub struct ImapPushSubcommand {
+    /// E-mail
+    #[arg(long)]
+    pub email: String,
+    /// Password
+    #[arg(long)]
+    pub password: String,
+    /// Input directory
+    #[arg(long, default_value = "messages")]
+    pub in_dir: String,
 }

@@ -4,6 +4,7 @@ use serde::Deserialize;
 pub struct ImapServerConfig {
     pub server: String,
     pub port: Option<u16>,
+    pub folder_delimiter: Option<char>,
 }
 
 #[derive(Debug, Deserialize, Clone)]
