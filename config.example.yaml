@@ -1,3 +1,4 @@
 imap:
-  server: imap.gmail.com
-  port: 993
+  pull:
+    server: imap.gmail.com
+    port: 993

@@ -37,9 +37,12 @@ pub struct ImapPullSubcommand {
     #[arg(long, default_value = "INBOX")]
     pub mailbox: String,
     /// Output directory
-    #[arg(long, default_value = "out")]
+    #[arg(long, default_value = "messages")]
     pub out_dir: String,
-    /// Mbox file size limit in megabytes 
+    /// Export messages in Mbox format
+    #[arg(long, default_value_t = false)]
+    pub export_mbox: bool,
+    /// Mbox file size limit in megabytes (applies only if --export-mbox is set)
     #[arg(long, default_value = "50 MB")]
     pub max_file_size: String,
 }

@@ -37,12 +37,13 @@ async fn run() -> anyhow::Result<()> {
                     imap_pull_subcommand.email,
                     imap_pull_subcommand.password,
                     imap_pull_subcommand.out_dir,
+                    imap_pull_subcommand.export_mbox,
                     parse_size::parse_size(&imap_pull_subcommand.max_file_size).context(
                         format!(
                             "malformed file size {:?}",
                             imap_pull_subcommand.max_file_size
                         ),
-                    )?,
+                    )? as usize,
                 )
                 .await?
             }

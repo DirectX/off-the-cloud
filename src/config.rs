@@ -1,9 +1,15 @@
 use serde::Deserialize;
 
 #[derive(Debug, Deserialize, Clone)]
-pub struct ImapConfig {
+pub struct ImapServerConfig {
     pub server: String,
     pub port: Option<u16>,
+}
+
+#[derive(Debug, Deserialize, Clone)]
+pub struct ImapConfig {
+    pub pull: Option<ImapServerConfig>,
+    pub push: Option<ImapServerConfig>,
 }
 
 #[derive(Debug, Deserialize)]
