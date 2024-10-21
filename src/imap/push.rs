@@ -103,10 +103,10 @@ pub async fn push(
                     if let Some(data) = data {
                         log::debug!("Message {} size: {}", message_id, data.len());
 
-                        imap_session
-                            .append(mailbox_utf7_name, Some(r"\Seen"), None, data)
-                            .await
-                            .context("error adding message")?;
+                        // imap_session
+                        //     .append(mailbox_utf7_name, Some(r"\Seen"), None, data)
+                        //     .await
+                        //     .context("error adding message")?;
                     }
                 });
         }
