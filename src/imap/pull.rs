@@ -2,11 +2,7 @@ use anyhow::Context;
 use futures::TryStreamExt;
 use walkdir::WalkDir;
 use std::{
-    env::current_dir,
-    fs::{self, File},
-    io::Write,
-    path::{Path, PathBuf},
-    str::FromStr,
+    env::current_dir, ffi::OsString, fs::{self, File}, io::Write, path::{Path, PathBuf}, str::FromStr
 };
 use tokio::{net::TcpStream, time::Instant};
 
@@ -79,48 +75,21 @@ pub async fn pull(
             .filter_map(|v| v.ok())
             .last();
 
-        let message_id = match last {
+        let starting_message_id = match last {
             Some(dir_entry) => {
-                log::info!("dir: {:?}", dir_entry.to_owned());
-                "2"
-                // let path = dir_entry.path().clone();
-                // Path::new(path)
-                //     .file_stem()
-                //     .unwrap_or_default()
-                //     .to_str()
-                //     .unwrap_or_default()
-                //     .trim_start_matches('0')
+                let os_str_one = OsString::from("1");
+                let last_file_string = String::from(dir_entry.path().file_stem().unwrap_or(os_str_one.as_os_str()).to_str().unwrap_or("1"));
+                let last_file = last_file_string.trim_start_matches('0');
+                let last_file: usize = last_file.parse()?;
+                last_file
             }
-            None => "1",
+            None => 1,
         };
 
-        log::info!("Message id: {}", message_id);
-
-
-            // .for_each(|x| {
-            //     let file_path = x.path().display().to_string();
-            //     let message_id = Path::new(&file_path)
-            //         .file_stem()
-            //         .unwrap_or_default()
-            //         .to_str()
-            //         .unwrap_or_default()
-            //         .trim_start_matches('0');
-
-            //     let data = fs::read(&file_path).ok();
-            //     if let Some(data) = data {
-            //         log::debug!("Message {} size: {}", message_id, data.len());
-
-            //         // imap_session
-            //         //     .append(mailbox_utf7_name, Some(r"\Seen"), None, data)
-            //         //     .await
-            //         //     .context("error adding message")?;
-            //     }
-            // });
-
-        continue;
+        log::info!("Starting message id: {}", starting_message_id);
 
         let batch_size = 200;
-        let mut message_id = 1u32;
+        let mut message_id = starting_message_id;
 
         if export_mbox {
             let mut bytes_written = 0usize;
