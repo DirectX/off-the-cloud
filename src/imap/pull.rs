@@ -81,7 +81,7 @@ pub async fn pull(
                 let last_file_string = String::from(dir_entry.path().file_stem().unwrap_or(os_str_one.as_os_str()).to_str().unwrap_or("1"));
                 let last_file = last_file_string.trim_start_matches('0');
                 let last_file: usize = last_file.parse()?;
-                last_file
+                last_file + 1
             }
             None => 1,
         };
