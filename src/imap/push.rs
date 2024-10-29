@@ -73,14 +73,16 @@ pub async fn push(
             log::info!(
                 "Processing mailbox {} ({:?})",
                 mailbox_name,
-                mailbox_utf7_name
+                &mailbox_utf7_name
             );
 
             if let Some(err) = imap_session.create(&mailbox_utf7_name).await.err() {
                 log::warn!("Unable to create folder: {}", err);
             }
 
-            // imap_session.select(&mailbox_utf7_name).await?;
+            log::info!("sending");
+
+            imap_session.select(&mailbox_utf7_name).await?;
             // log::debug!("Mailbox {mailbox_name} selected");
 
             WalkDir::new(mailbox_path)
@@ -103,10 +105,10 @@ pub async fn push(
                     if let Some(data) = data {
                         log::debug!("Message {} size: {}", message_id, data.len());
 
-                        // imap_session
-                        //     .append(mailbox_utf7_name, Some(r"\Seen"), None, data)
-                        //     .await
-                        //     .context("error adding message")?;
+                        imap_session
+                            .append(&mailbox_utf7_name, Some(r"\Seen"), None, data);
+                            // .await;
+                            // .context("error adding message")?;
                     }
                 });
         }
