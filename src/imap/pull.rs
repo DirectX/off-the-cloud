@@ -270,7 +270,7 @@ pub async fn pull(
                         let body = message.body().context("message did not have a body!")?;
                         let body_string = std::str::from_utf8(body).ok();
                         if body_string.is_none() {
-                            let bin_file_name = format!("{:0>8}.bin", current_message_id);
+                            let bin_file_name = format!(".{:0>8}.bin", current_message_id);
                             let bin_file_path = if folder_name.clone().starts_with("/") {
                                 PathBuf::from_str("/")
                                     .unwrap()
@@ -287,7 +287,7 @@ pub async fn pull(
                                 .context("unable to save *.bin file")?;
                             log::debug!("{} bytes bin data stored", body.len());
 
-                            log::warn!("Message {} had invalid UTF-8. Storing as binary in {}.", current_message_id, bin_file_name);
+                            log::warn!("Message {} had invalid UTF-8. Storing as binary in .{}.", current_message_id, bin_file_name);
                             continue;
                         }
                         let body = body_string.unwrap().as_bytes();
