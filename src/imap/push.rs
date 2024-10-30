@@ -53,7 +53,7 @@ pub async fn push(
             Err(_) => Filtering::Continue,
         }
     });
-    
+
     while !push_cancellation_token.is_cancelled() {
         match entries.next().await {
             Some(Ok(entry)) => {
@@ -125,7 +125,7 @@ pub async fn push(
                 match entry.file_type().await {
                     Ok(file_type) => {
                         if file_type.is_file() {
-                            if entry.path().extension() == Some("eml".as_ref()) {
+                            if entry.path().extension() == Some("eml".as_ref()) && entry.path().file_name().unwrap_or_default().to_string_lossy().starts_with('.') {
                                 Filtering::Continue
                             } else {
                                 Filtering::Ignore
@@ -146,6 +146,7 @@ pub async fn push(
                         let eml_file_path = entry.path().to_str().unwrap_or_default().to_string();
                         let eml_file_name = eml_file_path[mailbox_path.len() + 1..].to_string();
                         let message_id = eml_file_name
+                            .trim_start_matches('.')
                             .trim_start_matches('0')
                             .trim()
                             .trim_end_matches(".eml");
@@ -164,6 +165,10 @@ pub async fn push(
                                 .append(&mailbox_utf7_name, Some(r"(\Seen)"), None, data)
                                 .await {
                                     Ok(_) => {
+                                        let eml_file_name = format!(".{:0>8}.eml", message_id);
+                                        let new_eml_file_name = format!("{:0>8}.eml", message_id);
+                                        let new_eml_file_path = eml_file_path.replace(&eml_file_name, &new_eml_file_name);
+                                        fs::rename(eml_file_path, new_eml_file_path)?;
                                         log::debug!("{} sent ok", human_bytes(size));
                                         stored_count += 1;
                                     }
@@ -177,9 +182,8 @@ pub async fn push(
                     }
                     None => break,
                 }
-
-                log::info!("Stored {stored_count} messages to mailbox_mapped_name");
             }
+            log::info!("Stored {stored_count} messages to {mailbox_mapped_name}");
         }
 
         imap_session.logout().await?;

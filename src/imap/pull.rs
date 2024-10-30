@@ -85,6 +85,7 @@ pub async fn pull(
                 Ok(file_type) => {
                     if file_type.is_file() {
                         if entry.path().extension() == Some("eml".as_ref()) {
+                            log::info!("path: {:?}", entry.path());
                             Filtering::Continue
                         } else {
                             Filtering::Ignore
@@ -111,7 +112,7 @@ pub async fn pull(
                             .to_str()
                             .unwrap_or("1"),
                     );
-                    let last_file_str = last_file_string.trim_start_matches('0');
+                    let last_file_str = last_file_string.trim_start_matches('.').trim_start_matches('0');
                     let last_file: usize = last_file_str.parse()?;
                     last_file + 1
                 }
@@ -292,7 +293,7 @@ pub async fn pull(
                         }
                         let body = body_string.unwrap().as_bytes();
 
-                        let file_name = format!("{:0>8}.eml", current_message_id);
+                        let file_name = format!(".{:0>8}.eml", current_message_id);
                         let file_path = if folder_name.clone().starts_with("/") {
                             PathBuf::from_str("/")
                                 .unwrap()

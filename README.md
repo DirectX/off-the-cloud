@@ -8,7 +8,7 @@ This tool is ideal for migrating email between servers or backing up email to a 
 
 - [x] **Two-Stage Migration**: Migrate mailboxes in two steps with `pull` (download) and `push` (upload) commands.
 - [x] **Configurable Storage**: Save messages to a specified directory with user-specific folders and a mirrored IMAP folder structure.
-- [x] **File-Based Storage**: Emails are saved as individual files in `.eml` format, e.g., `000001.eml`.
+- [x] **File-Based Storage**: Emails are saved as individual files in `.eml` format, e.g., `00000001.eml`.
 - [x] **Incremental Pulling**: Only new messages are downloaded in repeated `pull` actions.
 - [x] **Customizable IMAP Folder Structure**: Set custom folder name mappings for localization and modify the delimiter for folder hierarchy.
 
@@ -67,7 +67,7 @@ off-the-cloud <COMMAND> [OPTIONS]
 
 #### `imap pull`
 
-Downloads messages from the source IMAP server and stores them locally.
+Downloads messages from the source IMAP server and stores them locally as `.00000001.eml`.
 
 **Options:**
 - `--email`: Email address for the source account.
@@ -86,10 +86,10 @@ Downloads messages from the source IMAP server and stores them locally.
 - `--password`: Password for the destination account.
 - `--in-dir`: Input directory containing downloaded messages (default: `messages`).
 
-Uploads messages to the destination IMAP server.
+Uploads messages to the destination IMAP server. Upom successfull upload the file name `.00000001.eml` will be changed to `00000001.eml` 
 
-> [!WARNING]
-> Call `imap push` only once. Repetitive call of `imap push` command will cause doubling of messages. Be careful!
+> [!NOTE]
+> Call `imap push` can be called more than once. Repetitive call of `imap push` command will upload messages not uploaded yet.
 
 ## Configuration
 
