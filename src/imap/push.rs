@@ -1,15 +1,14 @@
 use anyhow::Context;
-use async_imap::types::Flag;
-use futures::TryStreamExt;
+use async_walkdir::{Filtering, WalkDir};
+use futures_lite::stream::StreamExt;
+use human_bytes::human_bytes;
 use std::{
     env::current_dir,
-    fs::{self, File},
-    io::Write,
-    path::{Path, PathBuf},
+    fs,
+    path::PathBuf,
     str::FromStr,
 };
 use tokio::{net::TcpStream, time::Instant};
-use walkdir::{DirEntry, WalkDir};
 
 use crate::config::Config;
 
@@ -32,16 +31,34 @@ pub async fn push(
     log::info!("Getting mailboxes in {}", folder_path);
 
     let mut mailboxes = Vec::<(String, String)>::new();
-    WalkDir::new(folder_path)
-        .min_depth(1)
-        .into_iter()
-        .filter_entry(|e| e.file_type().is_dir())
-        .filter_map(|v| v.ok())
-        .for_each(|x| {
-            let mailbox_path = x.path().to_str().unwrap_or_default().to_string();
-            let mailbox_name = mailbox_path[folder_path.len()..].to_string();
-            mailboxes.push((mailbox_name, mailbox_path));
-        });
+
+    let mut entries = WalkDir::new(folder_path).filter(|entry| async move {
+        match entry.file_type().await {
+            Ok(file_type) => {
+                if file_type.is_dir() {
+                    Filtering::Continue
+                } else {
+                    Filtering::Ignore
+                }
+            }
+            Err(_) => Filtering::Continue,
+        }
+    });
+    loop {
+        match entries.next().await {
+            Some(Ok(entry)) => {
+                let mailbox_path = entry.path().to_str().unwrap_or_default().to_string();
+                let mailbox_name = mailbox_path[folder_path.len()..].to_string();
+                mailboxes.push((mailbox_name, mailbox_path));
+            }
+            Some(Err(e)) => {
+                log::warn!("Error reading dir: {}", e);
+                break;
+            }
+            None => break,
+        }
+    }
+
     log::info!("Found {} mailboxes", mailboxes.len());
 
     if mailboxes.len() > 0 {
@@ -50,13 +67,13 @@ pub async fn push(
             .clone()
             .context("IMAP config is not provided in config.yaml")?
             .push
-            .context("IMAP pull server config not provided")?;
+            .context("IMAP push server config not provided")?;
         let imap_server = imap_config.server.clone();
         let imap_port = imap_config.port.unwrap_or(993);
         let imap_addr = (imap_server, imap_port);
         let folder_delimiter = &imap_config.folder_delimiter.unwrap_or('/').to_string();
 
-        log::debug!("Pulling IMAP for account {email}...");
+        log::debug!("Pushing IMAP for account {email}...");
         let tcp_stream = TcpStream::connect(imap_addr.clone()).await?;
         let tls = async_native_tls::TlsConnector::new();
         let tls_stream = tls.connect(&imap_addr.0, tcp_stream).await?;
@@ -68,222 +85,87 @@ pub async fn push(
         log::info!("Logged in as {}", email);
 
         for (mailbox_name, mailbox_path) in mailboxes {
+            let mailbox_mapped_name = match imap_config.folder_name_mappings {
+                Some(ref folder_name_mappings) => {
+                    if folder_name_mappings.contains_key(&mailbox_name) {
+                        folder_name_mappings.get(&mailbox_name).unwrap().clone()
+                    } else {
+                        mailbox_name.clone()
+                    }
+                }
+                None => mailbox_name.clone(),
+            };
             let mailbox_utf7_name =
-                utf7_imap::encode_utf7_imap(mailbox_name.replace("/", folder_delimiter));
+                utf7_imap::encode_utf7_imap(mailbox_mapped_name.replace("/", folder_delimiter));
+
             log::info!(
                 "Processing mailbox {} ({:?})",
-                mailbox_name,
+                mailbox_mapped_name,
                 &mailbox_utf7_name
             );
 
             if let Some(err) = imap_session.create(&mailbox_utf7_name).await.err() {
-                log::warn!("Unable to create folder: {}", err);
+                log::debug!("Unable to create folder: {}", err);
             }
 
-            log::info!("sending");
-
             imap_session.select(&mailbox_utf7_name).await?;
-            // log::debug!("Mailbox {mailbox_name} selected");
+            log::debug!("Mailbox {mailbox_name} selected");
 
-            WalkDir::new(mailbox_path)
-                .min_depth(1)
-                .into_iter()
-                .filter_entry(|e| {
-                    e.file_type().is_file() && e.path().extension() == Some("eml".as_ref())
-                })
-                .filter_map(|v| v.ok())
-                .for_each(|x| {
-                    let file_path = x.path().display().to_string();
-                    let message_id = Path::new(&file_path)
-                        .file_stem()
-                        .unwrap_or_default()
-                        .to_str()
-                        .unwrap_or_default()
-                        .trim_start_matches('0');
-
-                    let data = fs::read(&file_path).ok();
-                    if let Some(data) = data {
-                        log::debug!("Message {} size: {}", message_id, data.len());
-
-                        imap_session
-                            .append(&mailbox_utf7_name, Some(r"\Seen"), None, data);
-                            // .await;
-                            // .context("error adding message")?;
+            let mut entries = WalkDir::new(&mailbox_path).filter(|entry| async move {
+                match entry.file_type().await {
+                    Ok(file_type) => {
+                        if file_type.is_file() {
+                            if entry.path().extension() == Some("eml".as_ref()) {
+                                Filtering::Continue
+                            } else {
+                                Filtering::Ignore
+                            }
+                        } else {
+                            Filtering::IgnoreDir
+                        }
                     }
-                });
+                    Err(_) => Filtering::Continue,
+                }
+            });
+            loop {
+                match entries.next().await {
+                    Some(Ok(entry)) => {
+                        let eml_file_path = entry.path().to_str().unwrap_or_default().to_string();
+                        let eml_file_name = eml_file_path[mailbox_path.len() + 1..].to_string();
+                        let message_id = eml_file_name
+                            .trim_start_matches('0')
+                            .trim()
+                            .trim_end_matches(".eml");
+
+                        log::debug!(
+                            "Pushing message {} to {}...",
+                            message_id,
+                            mailbox_mapped_name
+                        );
+
+                        let eml_data = fs::read(&eml_file_path).ok();
+                        if let Some(data) = eml_data {
+                            let size = data.len() as u32;
+
+                            match imap_session
+                                .append(&mailbox_utf7_name, Some(r"(\Seen)"), None, data)
+                                .await {
+                                    Ok(_) => log::debug!("{} sent ok", human_bytes(size)),
+                                    Err(err) => log::debug!("Error pushing message: {}", err),
+                                };
+                        }
+                    }
+                    Some(Err(e)) => {
+                        log::warn!("Error reading dir: {}", e);
+                        break;
+                    }
+                    None => break,
+                }
+            }
         }
 
         imap_session.logout().await?;
     }
-
-    // let mailbox_stream = imap_session
-    //     .list(None, Some("*"))
-    //     .await
-    //     .context("error getting mailbox listt")?;
-    // let mailboxes: Vec<_> = mailbox_stream.try_collect().await?;
-
-    // log::info!("Loaded {} mailboxes", mailboxes.len());
-
-    // for mailbox in mailboxes {
-    //     let mailbox_name = mailbox.name();
-    //     let mailbox_readable_name = utf7_imap::decode_utf7_imap(mailbox_name.to_string());
-    //     log::info!("Mailbox: {:?}", mailbox_readable_name);
-
-    //     imap_session.select(&mailbox_name).await?;
-    //     log::debug!("{mailbox_name} selected");
-
-    //     let folder_name = format!("{in_dir}/{email}/{mailbox_readable_name}",);
-    //     fs::create_dir_all(&folder_name)?;
-
-    //     let batch_size = 200;
-    //     let mut message_id = 1u32;
-
-    //     if export_mbox {
-    //         let mut bytes_written = 0usize;
-    //         let mut part_id = 1;
-
-    //         let file_name = format!("part-{:0>4}.mbox", part_id);
-    //         let file_path = if folder_name.clone().starts_with("/") {
-    //             PathBuf::from_str("/")
-    //                 .unwrap()
-    //                 .join(folder_name.clone())
-    //                 .join(file_name.clone())
-    //         } else {
-    //             current_dir()
-    //                 .unwrap()
-    //                 .join(folder_name.clone())
-    //                 .join(file_name.clone())
-    //         };
-
-    //         log::debug!("Creating part {}", file_path.to_string_lossy());
-    //         let mut out_file = File::create(file_path).context("Unable to open file")?;
-
-    //         loop {
-    //             let sequence_set = format!("{message_id}:{}", message_id + batch_size - 1);
-    //             log::info!("Querying {sequence_set}");
-
-    //             let messages_stream = imap_session
-    //                 .fetch(sequence_set, "RFC822")
-    //                 .await
-    //                 .context("error getting messages")?;
-    //             let messages: Vec<_> = messages_stream.try_collect().await?;
-
-    //             if messages.len() == 0 {
-    //                 log::debug!("No more messages");
-    //                 break;
-    //             } else {
-    //                 let mut current_message_id = message_id - 1;
-
-    //                 for message in messages {
-    //                     current_message_id += 1;
-    //                     let body = message.body().context("message did not have a body!")?;
-    //                     let body = std::str::from_utf8(body).ok();
-    //                     if body.is_none() {
-    //                         log::warn!("Message {} had invalid UTF-8", current_message_id);
-    //                         continue;
-    //                     }
-    //                     let body = body.unwrap().as_bytes();
-
-    //                     let dt = chrono::Utc::now();
-    //                     let timestamp = dt.format("%a %b %e %T %Y").to_string();
-    //                     let prefix_string = format!("From MAILER-DAEMON {timestamp}\n");
-    //                     let prefix = prefix_string.as_bytes();
-
-    //                     let suffix_string = format!("\n\n");
-    //                     let suffix = suffix_string.as_bytes();
-
-    //                     if bytes_written + prefix.len() + body.len() + suffix.len() > max_file_size {
-    //                         log::debug!("File size exceed limit {} > {}", prefix.len() + body.len() + suffix.len(), max_file_size);
-    //                         out_file.flush().context("error flushing file")?;
-
-    //                         part_id += 1;
-
-    //                         let file_name = format!("part-{:0>4}.mbox", part_id);
-    //                         let file_path = if folder_name.clone().starts_with("/") {
-    //                             PathBuf::from_str("/")
-    //                                 .unwrap()
-    //                                 .join(folder_name.clone())
-    //                                 .join(file_name.clone())
-    //                         } else {
-    //                             current_dir()
-    //                                 .unwrap()
-    //                                 .join(folder_name.clone())
-    //                                 .join(file_name.clone())
-    //                         };
-
-    //                         log::debug!("Creating part {}", file_path.to_string_lossy());
-    //                         out_file = File::create(file_path).context("Unable to open file")?;
-
-    //                         bytes_written = 0;
-    //                     }
-
-    //                     out_file
-    //                         .write(prefix)
-    //                         .context("unable to write file prefix")?;
-    //                     out_file.write(body).context("error writing data to file")?;
-    //                     out_file
-    //                         .write(suffix)
-    //                         .context("unable to write file suffix")?;
-    //                     log::debug!("{} bytes message added", prefix.len() + body.len() + suffix.len());
-
-    //                     bytes_written += prefix.len() + body.len() + suffix.len();
-    //                 }
-    //             }
-
-    //             message_id += batch_size;
-    //         }
-
-    //         out_file.flush().context("error flushing file")?;
-    //     } else {
-    //         loop {
-    //             let sequence_set = format!("{message_id}:{}", message_id + batch_size - 1);
-    //             log::info!("Querying {sequence_set}");
-
-    //             let messages_stream = imap_session
-    //                 .fetch(sequence_set, "RFC822")
-    //                 .await
-    //                 .context("error getting messages")?;
-    //             let messages: Vec<_> = messages_stream.try_collect().await?;
-
-    //             if messages.len() == 0 {
-    //                 log::debug!("No more messages");
-    //                 break;
-    //             } else {
-    //                 let mut current_message_id = message_id - 1;
-
-    //                 for message in messages {
-    //                     current_message_id += 1;
-    //                     let body = message.body().context("message did not have a body!")?;
-    //                     let body = std::str::from_utf8(body).ok();
-    //                     if body.is_none() {
-    //                         log::warn!("Message {} had invalid UTF-8", current_message_id);
-    //                         continue;
-    //                     }
-    //                     let body = body.unwrap().as_bytes();
-
-    //                     let file_name = format!("{:0>8}.eml", current_message_id);
-    //                     let file_path = if folder_name.clone().starts_with("/") {
-    //                         PathBuf::from_str("/")
-    //                             .unwrap()
-    //                             .join(folder_name.clone())
-    //                             .join(file_name.clone())
-    //                     } else {
-    //                         current_dir()
-    //                             .unwrap()
-    //                             .join(folder_name.clone())
-    //                             .join(file_name.clone())
-    //                     };
-    //                     fs::write(file_path, body)
-    //                         .context("unable to write file")
-    //                         .context("unable to save *.eml file")?;
-    //                     log::debug!("{} bytes eml message added", body.len());
-    //                 }
-    //             }
-
-    //             message_id += batch_size;
-    //         }
-    //     }
-    // }
 
     log::info!("Done in {:?}", start.elapsed());
 

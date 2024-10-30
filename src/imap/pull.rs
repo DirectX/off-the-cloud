@@ -1,8 +1,13 @@
 use anyhow::Context;
-use futures::TryStreamExt;
-use walkdir::WalkDir;
+use async_walkdir::{Filtering, WalkDir};
+use futures_lite::stream::StreamExt;
 use std::{
-    env::current_dir, ffi::OsString, fs::{self, File}, io::Write, path::{Path, PathBuf}, str::FromStr
+    env::current_dir,
+    ffi::OsString,
+    fs::{self, File},
+    io::Write,
+    path::PathBuf,
+    str::FromStr,
 };
 use tokio::{net::TcpStream, time::Instant};
 
@@ -66,23 +71,43 @@ pub async fn pull(
 
         log::info!("Folder {folder_path}");
 
-        let last = WalkDir::new(folder_path)
-            .min_depth(1)
-            .into_iter()
-            .filter_entry(|e| {
-                e.file_type().is_file() && e.path().extension() == Some("eml".as_ref())
-            })
-            .filter_map(|v| v.ok())
-            .last();
+        let entries = WalkDir::new(folder_path).filter(|entry| async move {
+            match entry.file_type().await {
+                Ok(file_type) => {
+                    if file_type.is_file() {
+                        if entry.path().extension() == Some("eml".as_ref()) {
+                            Filtering::Continue
+                        } else {
+                            Filtering::Ignore
+                        }
+                    } else {
+                        Filtering::IgnoreDir
+                    }
+                }
+                Err(_) => Filtering::Continue,
+            }
+        });
+
+        let last = entries.last().await;
 
         let starting_message_id = match last {
-            Some(dir_entry) => {
-                let os_str_one = OsString::from("1");
-                let last_file_string = String::from(dir_entry.path().file_stem().unwrap_or(os_str_one.as_os_str()).to_str().unwrap_or("1"));
-                let last_file = last_file_string.trim_start_matches('0');
-                let last_file: usize = last_file.parse()?;
-                last_file + 1
-            }
+            Some(dir_entry_result) => match dir_entry_result {
+                Ok(dir_entry) => {
+                    let os_str_one = OsString::from("1");
+                    let last_file_string = String::from(
+                        dir_entry
+                            .path()
+                            .file_stem()
+                            .unwrap_or(os_str_one.as_os_str())
+                            .to_str()
+                            .unwrap_or("1"),
+                    );
+                    let last_file_str = last_file_string.trim_start_matches('0');
+                    let last_file: usize = last_file_str.parse()?;
+                    last_file + 1
+                }
+                Err(_) => 1,
+            },
             None => 1,
         };
 
@@ -210,6 +235,8 @@ pub async fn pull(
                     log::debug!("No more messages");
                     break;
                 } else {
+                    log::debug!("Fetching {} messages", messages.len());
+
                     let mut current_message_id = message_id - 1;
 
                     for message in messages {

@@ -5,4 +5,8 @@ imap:
   pull:
     server: imap.example.com
     port: 993
-    folder_delimiter: .
+    # folder_delimiter: .
+    # folder_name_mappings:
+    #   "Envoyés": "Sent"
+    #   "Corbeille": "Trash"
+    #   "Pourriel": "Junk"
