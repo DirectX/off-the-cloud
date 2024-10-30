@@ -86,7 +86,7 @@ Downloads messages from the source IMAP server and stores them locally.
 Uploads messages to the destination IMAP server.
 
 > [!WARNING]
-> Call `push` only once. Repetitive calling of `push` will cause doubling of messages. Be careful!
+> Call `imap push` only once. Repetitive call of `imap push` command will cause doubling of messages. Be careful!
 
 ## Configuration
 
