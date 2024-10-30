@@ -76,7 +76,7 @@ Downloads messages from the source IMAP server and stores them locally.
 - `--export-mbox`: Optionally export messages in Mbox format for further importing manually. No `*.eml` files storing in this mode and `imap push` wouldn't work after.
 - `--max-file-size`: File size limit for Mbox exports (only if `--export-mbox` is set).
 
-> [!NONE]
+> [!NOTE]
 > Command `imap pull` is resumable. It is safe to run it repeatedly. The process will continue from the latest file.
 
 #### `imap push`
