@@ -73,20 +73,20 @@ Downloads messages from the source IMAP server and stores them locally.
 - `--email`: Email address for the source account.
 - `--password`: Password for the source account.
 - `--out-dir`: Output directory for stored messages (default: `messages`).
-- `--export-mbox`: Optionally export messages in Mbox format.
+- `--export-mbox`: Optionally export messages in Mbox format for further importing manually. No `*.eml` files storing in this mode and `imap push` wouldn't work after.
 - `--max-file-size`: File size limit for Mbox exports (only if `--export-mbox` is set).
 
 #### `imap push`
-
-Uploads messages to the destination IMAP server.
-
-> [!WARNING]
-> Call `push` only once. Repetitive calling of `push` will cause doubling of messages. Be careful!
 
 **Options:**
 - `--email`: Email address for the destination account.
 - `--password`: Password for the destination account.
 - `--in-dir`: Input directory containing downloaded messages (default: `messages`).
+
+Uploads messages to the destination IMAP server.
+
+> [!WARNING]
+> Call `push` only once. Repetitive calling of `push` will cause doubling of messages. Be careful!
 
 ## Configuration
 
@@ -100,7 +100,7 @@ imap:
   push:
     server: imap.example.com
     port: 993
-    folder_delimiter: .
+    folder_delimiter: /
     folder_name_mappings:
       "Envoyés": "Sent"
       "Corbeille": "Trash"
