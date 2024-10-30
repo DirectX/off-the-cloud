@@ -23,6 +23,15 @@ pub async fn pull(
 ) -> anyhow::Result<()> {
     let start = Instant::now();
 
+    let cancellation_token = tokio_util::sync::CancellationToken::new();
+    let pull_cancellation_token = cancellation_token.clone();
+
+    tokio::spawn(async move {
+        tokio::signal::ctrl_c().await.unwrap();
+        log::info!("\nShutting down...");
+        cancellation_token.cancel();
+    });
+
     let imap_config = config
         .imap
         .clone()
@@ -136,7 +145,7 @@ pub async fn pull(
             log::debug!("Creating part {}", file_path.to_string_lossy());
             let mut out_file = File::create(file_path).context("Unable to open file")?;
 
-            loop {
+            while !pull_cancellation_token.is_cancelled() {
                 let sequence_set = format!("{message_id}:{}", message_id + batch_size - 1);
                 log::info!("Querying {sequence_set}");
 
@@ -238,7 +247,7 @@ pub async fn pull(
 
             out_file.flush().context("error flushing file")?;
         } else {
-            loop {
+            while !pull_cancellation_token.is_cancelled() {
                 let sequence_set = format!("{message_id}:{}", message_id + batch_size - 1);
                 log::info!("Querying {sequence_set}");
 

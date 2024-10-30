@@ -20,6 +20,15 @@ pub async fn push(
 ) -> anyhow::Result<()> {
     let start = Instant::now();
 
+    let cancellation_token = tokio_util::sync::CancellationToken::new();
+    let push_cancellation_token = cancellation_token.clone();
+
+    tokio::spawn(async move {
+        tokio::signal::ctrl_c().await.unwrap();
+        log::info!("\nShutting down...");
+        cancellation_token.cancel();
+    });
+
     let folder_name = format!("{in_dir}/{email}/",);
     let folder_path = if folder_name.clone().starts_with("/") {
         PathBuf::from_str("/").unwrap().join(folder_name.clone())
@@ -44,7 +53,8 @@ pub async fn push(
             Err(_) => Filtering::Continue,
         }
     });
-    loop {
+    
+    while !push_cancellation_token.is_cancelled() {
         match entries.next().await {
             Some(Ok(entry)) => {
                 let mailbox_path = entry.path().to_str().unwrap_or_default().to_string();
@@ -127,8 +137,10 @@ pub async fn push(
                     Err(_) => Filtering::Continue,
                 }
             });
+            
             let mut stored_count = 0;
-            loop {
+            
+            while !push_cancellation_token.is_cancelled() {
                 match entries.next().await {
                     Some(Ok(entry)) => {
                         let eml_file_path = entry.path().to_str().unwrap_or_default().to_string();
