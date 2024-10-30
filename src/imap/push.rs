@@ -127,6 +127,7 @@ pub async fn push(
                     Err(_) => Filtering::Continue,
                 }
             });
+            let mut stored_count = 0;
             loop {
                 match entries.next().await {
                     Some(Ok(entry)) => {
@@ -150,7 +151,10 @@ pub async fn push(
                             match imap_session
                                 .append(&mailbox_utf7_name, Some(r"(\Seen)"), None, data)
                                 .await {
-                                    Ok(_) => log::debug!("{} sent ok", human_bytes(size)),
+                                    Ok(_) => {
+                                        log::debug!("{} sent ok", human_bytes(size));
+                                        stored_count += 1;
+                                    }
                                     Err(err) => log::debug!("Error pushing message: {}", err),
                                 };
                         }
@@ -161,6 +165,8 @@ pub async fn push(
                     }
                     None => break,
                 }
+
+                log::info!("Stored {stored_count} messages to mailbox_mapped_name");
             }
         }
 
