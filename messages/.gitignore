@@ -1,2 +1,4 @@
 *
 !.gitignore
+!sample-pull-list.csv
+!sample-push-list.csv

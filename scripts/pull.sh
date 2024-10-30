@@ -1,7 +1,7 @@
 #!/bin/bash
 
 if [ $# -ne 2 ]; then
-    >&2 echo "Usage: ./scripts/pull.sh email password"
+    >&2 echo "Usage: $0 <email> <password>"
     exit 1
 fi
 

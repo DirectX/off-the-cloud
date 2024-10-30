@@ -76,6 +76,9 @@ Downloads messages from the source IMAP server and stores them locally.
 - `--export-mbox`: Optionally export messages in Mbox format for further importing manually. No `*.eml` files storing in this mode and `imap push` wouldn't work after.
 - `--max-file-size`: File size limit for Mbox exports (only if `--export-mbox` is set).
 
+> [!NONE]
+> Command `imap pull` is resumable. It is safe to run it repeatedly. The process will continue from the latest file.
+
 #### `imap push`
 
 **Options:**
@@ -113,6 +116,40 @@ imap:
 - **port**: Port for IMAP connections (e.g., 993 for SSL).
 - **folder_delimiter**: Character for folder hierarchy (e.g., `.` or `/`).
 - **folder_name_mappings**: Mappings for IMAP folder names, allowing localized folder names to be translated (e.g., French to English).
+
+## Convenient Scripts
+
+### Pull
+
+```bash
+./scripts/pull.sh user1@example.com password1
+```
+
+### Pull CSV
+
+```bash
+./scripts/pull-csv.sh ./messages/pull-list.csv
+```
+
+> [!NOTE]
+> Comma-separated CSV file containing 2 columns `email` and `password` without header.
+> Use file `sample-pull-list.csv` as a reference.
+
+### Push
+
+```bash
+./scripts/push.sh user1@example.com anotherPassword1
+```
+
+### Push CSV
+
+```bash
+./scripts/push-csv.sh ./messages/push-list.csv
+```
+
+> [!NOTE]
+> Comma-separated CSV file containing 2 columns `email` and `password` without header.
+> Use file `sample-push-list.csv` as a reference.
 
 ## License
 

@@ -155,12 +155,29 @@ pub async fn pull(
                     for message in messages {
                         current_message_id += 1;
                         let body = message.body().context("message did not have a body!")?;
-                        let body = std::str::from_utf8(body).ok();
-                        if body.is_none() {
-                            log::warn!("Message {} had invalid UTF-8", current_message_id);
+                        let body_string = std::str::from_utf8(body).ok();
+                        if body_string.is_none() {
+                            let bin_file_name = format!("{:0>8}.bin", current_message_id);
+                            let bin_file_path = if folder_name.clone().starts_with("/") {
+                                PathBuf::from_str("/")
+                                    .unwrap()
+                                    .join(folder_name.clone())
+                                    .join(bin_file_name.clone())
+                            } else {
+                                current_dir()
+                                    .unwrap()
+                                    .join(folder_name.clone())
+                                    .join(bin_file_name.clone())
+                            };
+                            fs::write(bin_file_path, body)
+                                .context("unable to write file")
+                                .context("unable to save *.bin file")?;
+                            log::debug!("{} bytes bin data stored", body.len());
+
+                            log::warn!("Message {} had invalid UTF-8. Storing as binary in {}.", current_message_id, bin_file_name);
                             continue;
                         }
-                        let body = body.unwrap().as_bytes();
+                        let body = body_string.unwrap().as_bytes();
 
                         let dt = chrono::Utc::now();
                         let timestamp = dt.format("%a %b %e %T %Y").to_string();
@@ -242,12 +259,29 @@ pub async fn pull(
                     for message in messages {
                         current_message_id += 1;
                         let body = message.body().context("message did not have a body!")?;
-                        let body = std::str::from_utf8(body).ok();
-                        if body.is_none() {
-                            log::warn!("Message {} had invalid UTF-8", current_message_id);
+                        let body_string = std::str::from_utf8(body).ok();
+                        if body_string.is_none() {
+                            let bin_file_name = format!("{:0>8}.bin", current_message_id);
+                            let bin_file_path = if folder_name.clone().starts_with("/") {
+                                PathBuf::from_str("/")
+                                    .unwrap()
+                                    .join(folder_name.clone())
+                                    .join(bin_file_name.clone())
+                            } else {
+                                current_dir()
+                                    .unwrap()
+                                    .join(folder_name.clone())
+                                    .join(bin_file_name.clone())
+                            };
+                            fs::write(bin_file_path, body)
+                                .context("unable to write file")
+                                .context("unable to save *.bin file")?;
+                            log::debug!("{} bytes bin data stored", body.len());
+
+                            log::warn!("Message {} had invalid UTF-8. Storing as binary in {}.", current_message_id, bin_file_name);
                             continue;
                         }
-                        let body = body.unwrap().as_bytes();
+                        let body = body_string.unwrap().as_bytes();
 
                         let file_name = format!("{:0>8}.eml", current_message_id);
                         let file_path = if folder_name.clone().starts_with("/") {
