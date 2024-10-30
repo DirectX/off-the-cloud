@@ -6,15 +6,15 @@ This tool is ideal for migrating email between servers or backing up email to a 
 
 ## Features
 
-[x] **Two-Stage Migration**: Migrate mailboxes in two steps with `pull` (download) and `push` (upload) commands.
-[x] **Configurable Storage**: Save messages to a specified directory with user-specific folders and a mirrored IMAP folder structure.
-[x] **File-Based Storage**: Emails are saved as individual files in `.eml` format, e.g., `000001.eml`.
-[x] **Incremental Pulling**: Only new messages are downloaded in repeated `pull` actions.
-[x] **Customizable IMAP Folder Structure**: Set custom folder name mappings for localization and modify the delimiter for folder hierarchy.
+- [x] **Two-Stage Migration**: Migrate mailboxes in two steps with `pull` (download) and `push` (upload) commands.
+- [x] **Configurable Storage**: Save messages to a specified directory with user-specific folders and a mirrored IMAP folder structure.
+- [x] **File-Based Storage**: Emails are saved as individual files in `.eml` format, e.g., `000001.eml`.
+- [x] **Incremental Pulling**: Only new messages are downloaded in repeated `pull` actions.
+- [x] **Customizable IMAP Folder Structure**: Set custom folder name mappings for localization and modify the delimiter for folder hierarchy.
 
 ## Upcoming Features
-[ ] **Calendar Backups**: CalDAV, *.ical support.
-[ ] **WebDAV transfers**: WebDAV support.
+- [ ] **Calendar Backups**: CalDAV, *.ical support.
+- [ ] **WebDAV transfers**: WebDAV support.
 
 ## Installation
 
