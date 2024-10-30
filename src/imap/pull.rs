@@ -85,7 +85,6 @@ pub async fn pull(
                 Ok(file_type) => {
                     if file_type.is_file() {
                         if entry.path().extension() == Some("eml".as_ref()) {
-                            log::info!("path: {:?}", entry.path());
                             Filtering::Continue
                         } else {
                             Filtering::Ignore
