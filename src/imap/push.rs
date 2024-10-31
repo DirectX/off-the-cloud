@@ -29,7 +29,10 @@ pub async fn push(
         cancellation_token.cancel();
     });
 
-    let folder_name = format!("{in_dir}/{email}/",);
+    let domain = email.split("@").last().context("wrong email address {email}")?;
+    log::info!("Domain: {domain}");
+
+    let folder_name = format!("{in_dir}/{domain}/{email}/",);
     let folder_path = if folder_name.clone().starts_with("/") {
         PathBuf::from_str("/").unwrap().join(folder_name.clone())
     } else {

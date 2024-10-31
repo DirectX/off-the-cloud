@@ -1,8 +1,8 @@
 #!/bin/bash
 
-filename="$1"
+FILENAME="$1"
 
-if [[ -z "$filename" ]]; then
+if [[ -z "$FILENAME" ]]; then
   >&2 echo "Usage: $0 <filename>"
   exit 1
 fi
@@ -12,7 +12,7 @@ import csv
 import sys
 import subprocess
 
-filename = "$filename"
+filename = "$FILENAME"
 try:
     with open(filename, newline='') as csvfile:
         reader = csv.reader(csvfile)

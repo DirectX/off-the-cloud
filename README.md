@@ -76,8 +76,35 @@ Downloads messages from the source IMAP server and stores them locally as `.0000
 - `--export-mbox`: Optionally export messages in Mbox format for further importing manually. No `*.eml` files storing in this mode and `imap push` wouldn't work after.
 - `--max-file-size`: File size limit for Mbox exports (only if `--export-mbox` is set).
 
+Re-creates email mailbox structure inside of the `{out_dir}` folder and placing messages in the following format: `.00000001.eml` in folders respective to IMAP folder structure e.g.
+
+```
+./messages
+└── example.com
+    ├── user1@example.com
+    │   ├── INBOX
+    │   │   ├── News
+    │   │   │   ├── .00000001.eml
+    │   │   │   ├── .00000002.eml
+    │   │   │   └── ...
+    │   │   ├── .00000001.eml
+    │   │   ├── .00000002.eml
+    │   │   ├── .00000003.eml
+    │   │   └── ...
+    │   └── Sent
+    │       ├── .00000001.eml
+    │       ├── .00000002.eml
+    │       └── ...
+    └── user2@example.com
+        ├── INBOX
+        │   ├── News
+        │   │   ├── .00000001.eml
+        │   │   └── ...
+          ...
+```
+
 > [!NOTE]
-> Command `imap pull` is resumable. It is safe to run it repeatedly. The process will continue from the latest file.
+> Command `imap pull` is resumable. It is safe to run it repeatedly. The process will continue for every folder from the latest file.
 
 #### `imap push`
 
@@ -86,10 +113,21 @@ Downloads messages from the source IMAP server and stores them locally as `.0000
 - `--password`: Password for the destination account.
 - `--in-dir`: Input directory containing downloaded messages (default: `messages`).
 
-Uploads messages to the destination IMAP server. Upom successfull upload the file name `.00000001.eml` will be changed to `00000001.eml` 
-
 > [!NOTE]
 > Call `imap push` can be called more than once. Repetitive call of `imap push` command will upload messages not uploaded yet.
+
+Uploads messages to the destination IMAP server. It will traverse the internal structure of given mailbox and re-creates IMAP folders if necessary. Only dot-prefixed messages like `.00000001.eml` will be processed. Upon successfull upload the file name `.00000001.eml` will be changed to `00000001.eml` in order to exclude it from further uploads.
+
+The contents of individual mailbox can be archived for backup purposes as follows
+
+```bash
+DOMAIN=example.com
+MAILBOX=user1@example.com
+tar -cvzf ./messages/${DOMAIN}/$(date +%Y%m%d_%H%M%S)-${MAILBOX}-backup.tar.gz ./messages/${DOMAIN}/${MAILBOX}
+```
+
+> [!TIP]
+> For backing-up all mailboxes in domain use [./scripts/backup-domain.sh](#backup-domain).
 
 ## Configuration
 
@@ -150,6 +188,12 @@ imap:
 > [!NOTE]
 > Comma-separated CSV file containing 2 columns `email` and `password` without header.
 > Use file `sample-push-list.csv` as a reference.
+
+### Backup Domain
+
+```bash
+./scripts/backup-domain.sh example.com
+```
 
 ## License
 

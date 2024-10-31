@@ -32,6 +32,9 @@ pub async fn pull(
         cancellation_token.cancel();
     });
 
+    let domain = email.split("@").last().context("wrong email address {email}")?;
+    log::info!("Domain: {domain}");
+
     let imap_config = config
         .imap
         .clone()
@@ -69,7 +72,7 @@ pub async fn pull(
         imap_session.select(&mailbox_name).await?;
         log::debug!("{mailbox_name} selected");
 
-        let folder_name = format!("{out_dir}/{email}/{mailbox_readable_name}",);
+        let folder_name = format!("{out_dir}/{domain}/{email}/{mailbox_readable_name}",);
         let folder_path = if folder_name.clone().starts_with("/") {
             PathBuf::from_str("/").unwrap().join(folder_name.clone())
         } else {
