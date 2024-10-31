@@ -305,7 +305,7 @@ pub async fn pull(
 
                             log::debug!("{} bytes bin data stored", body.len());
                             log::warn!(
-                                "Message {} had invalid UTF-8. Storing as binary in .{}.",
+                                "Message {} had invalid UTF-8. Storing as binary in {}.",
                                 current_message_id,
                                 bin_file_name
                             );
