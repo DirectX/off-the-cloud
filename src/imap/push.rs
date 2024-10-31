@@ -2,12 +2,7 @@ use anyhow::Context;
 use async_walkdir::{Filtering, WalkDir};
 use futures_lite::stream::StreamExt;
 use human_bytes::human_bytes;
-use std::{
-    env::current_dir,
-    fs,
-    path::PathBuf,
-    str::FromStr,
-};
+use std::{env::current_dir, fs, path::PathBuf, str::FromStr};
 use tokio::{net::TcpStream, time::Instant};
 
 use crate::config::Config;
@@ -29,8 +24,13 @@ pub async fn push(
         cancellation_token.cancel();
     });
 
-    let domain = email.split("@").last().context("wrong email address {email}")?;
+    let domain = email
+        .split("@")
+        .last()
+        .context("wrong email address {email}")?;
     log::info!("Domain: {domain}");
+
+    let mut total_pushed_count = 0;
 
     let folder_name = format!("{in_dir}/{domain}/{email}/",);
     let folder_path = if folder_name.clone().starts_with("/") {
@@ -128,7 +128,14 @@ pub async fn push(
                 match entry.file_type().await {
                     Ok(file_type) => {
                         if file_type.is_file() {
-                            if entry.path().extension() == Some("eml".as_ref()) && entry.path().file_name().unwrap_or_default().to_string_lossy().starts_with('.') {
+                            if entry.path().extension() == Some("eml".as_ref())
+                                && entry
+                                    .path()
+                                    .file_name()
+                                    .unwrap_or_default()
+                                    .to_string_lossy()
+                                    .starts_with('.')
+                            {
                                 Filtering::Continue
                             } else {
                                 Filtering::Ignore
@@ -140,9 +147,9 @@ pub async fn push(
                     Err(_) => Filtering::Continue,
                 }
             });
-            
-            let mut stored_count = 0;
-            
+
+            let mut pushed_count = 0;
+
             while !push_cancellation_token.is_cancelled() {
                 match entries.next().await {
                     Some(Ok(entry)) => {
@@ -166,17 +173,22 @@ pub async fn push(
 
                             match imap_session
                                 .append(&mailbox_utf7_name, Some(r"(\Seen)"), None, data)
-                                .await {
-                                    Ok(_) => {
-                                        let eml_file_name = format!(".{:0>8}.eml", message_id);
-                                        let new_eml_file_name = format!("{:0>8}.eml", message_id);
-                                        let new_eml_file_path = eml_file_path.replace(&eml_file_name, &new_eml_file_name);
-                                        fs::rename(eml_file_path, new_eml_file_path)?;
-                                        log::debug!("{} sent ok", human_bytes(size));
-                                        stored_count += 1;
-                                    }
-                                    Err(err) => log::debug!("Error pushing message: {}", err),
-                                };
+                                .await
+                            {
+                                Ok(_) => {
+                                    let eml_file_name = format!(".{:0>8}.eml", message_id);
+                                    let new_eml_file_name = format!("{:0>8}.eml", message_id);
+                                    let new_eml_file_path =
+                                        eml_file_path.replace(&eml_file_name, &new_eml_file_name);
+                                    fs::rename(eml_file_path, new_eml_file_path)?;
+
+                                    pushed_count += 1;
+                                    total_pushed_count += 1;
+
+                                    log::debug!("{} sent ok", human_bytes(size));
+                                }
+                                Err(err) => log::debug!("Error pushing message: {}", err),
+                            };
                         }
                     }
                     Some(Err(e)) => {
@@ -186,13 +198,17 @@ pub async fn push(
                     None => break,
                 }
             }
-            log::info!("Stored {stored_count} messages to {mailbox_mapped_name}");
+            log::info!("Uploaded {pushed_count} messages to {mailbox_mapped_name}");
         }
 
         imap_session.logout().await?;
     }
 
-    log::info!("Done in {:?}", start.elapsed());
+    log::info!(
+        "Done in {:?}, {} messages uploaded ok.",
+        start.elapsed(),
+        total_pushed_count
+    );
 
     Ok(())
 }

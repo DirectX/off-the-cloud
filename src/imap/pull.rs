@@ -32,8 +32,14 @@ pub async fn pull(
         cancellation_token.cancel();
     });
 
-    let domain = email.split("@").last().context("wrong email address {email}")?;
+    let domain = email
+        .split("@")
+        .last()
+        .context("wrong email address {email}")?;
     log::info!("Domain: {domain}");
+
+    let mut total_pulled_utf8_count = 0;
+    let mut total_pulled_bin_count = 0;
 
     let imap_config = config
         .imap
@@ -114,7 +120,9 @@ pub async fn pull(
                             .to_str()
                             .unwrap_or("1"),
                     );
-                    let last_file_str = last_file_string.trim_start_matches('.').trim_start_matches('0');
+                    let last_file_str = last_file_string
+                        .trim_start_matches('.')
+                        .trim_start_matches('0');
                     let last_file: usize = last_file_str.parse()?;
                     last_file + 1
                 }
@@ -186,7 +194,11 @@ pub async fn pull(
                                 .context("unable to save *.bin file")?;
                             log::debug!("{} bytes bin data stored", body.len());
 
-                            log::warn!("Message {} had invalid UTF-8. Storing as binary in {}.", current_message_id, bin_file_name);
+                            log::warn!(
+                                "Message {} had invalid UTF-8. Storing as binary in {}.",
+                                current_message_id,
+                                bin_file_name
+                            );
                             continue;
                         }
                         let body = body_string.unwrap().as_bytes();
@@ -288,9 +300,15 @@ pub async fn pull(
                             fs::write(bin_file_path, body)
                                 .context("unable to write file")
                                 .context("unable to save *.bin file")?;
-                            log::debug!("{} bytes bin data stored", body.len());
 
-                            log::warn!("Message {} had invalid UTF-8. Storing as binary in .{}.", current_message_id, bin_file_name);
+                            total_pulled_bin_count += 1;
+
+                            log::debug!("{} bytes bin data stored", body.len());
+                            log::warn!(
+                                "Message {} had invalid UTF-8. Storing as binary in .{}.",
+                                current_message_id,
+                                bin_file_name
+                            );
                             continue;
                         }
                         let body = body_string.unwrap().as_bytes();
@@ -310,6 +328,9 @@ pub async fn pull(
                         fs::write(file_path, body)
                             .context("unable to write file")
                             .context("unable to save *.eml file")?;
+
+                        total_pulled_utf8_count += 1;
+
                         log::debug!("{} bytes eml message added", body.len());
                     }
                 }
@@ -321,7 +342,12 @@ pub async fn pull(
 
     imap_session.logout().await?;
 
-    log::info!("Done in {:?}", start.elapsed());
+    log::info!(
+        "Done in {:?}, {} new messages stored, {} was non-UTF8",
+        start.elapsed(),
+        total_pulled_utf8_count,
+        total_pulled_bin_count
+    );
 
     Ok(())
 }
