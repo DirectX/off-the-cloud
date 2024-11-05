@@ -283,21 +283,21 @@ pub async fn pull(
                         current_message_id += 1;
                         let body = message.body().context("message did not have a body!")?;
 
-                        let bin_file_name = format!(".{:0>8}.eml", current_message_id);
+                        let eml_file_name = format!(".{:0>8}.eml", current_message_id);
                         let bin_file_path = if folder_name.clone().starts_with("/") {
                             PathBuf::from_str("/")
                                 .unwrap()
                                 .join(folder_name.clone())
-                                .join(bin_file_name.clone())
+                                .join(eml_file_name.clone())
                         } else {
                             current_dir()
                                 .unwrap()
                                 .join(folder_name.clone())
-                                .join(bin_file_name.clone())
+                                .join(eml_file_name.clone())
                         };
                         fs::write(bin_file_path, body)
                             .context("unable to write file")
-                            .context("unable to save *.bin file")?;
+                            .context("unable to save *.eml file")?;
 
                         total_pulled_count += 1;
 

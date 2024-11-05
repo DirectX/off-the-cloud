@@ -1,6 +1,4 @@
 use anyhow::Context;
-use async_walkdir::{Filtering, WalkDir};
-use futures_lite::stream::StreamExt;
 use human_bytes::human_bytes;
 use std::{env::current_dir, fs, path::PathBuf, str::FromStr};
 use tokio::{net::TcpStream, time::Instant};
@@ -44,31 +42,69 @@ pub async fn push(
 
     let mut mailboxes = Vec::<(String, String)>::new();
 
-    let mut entries = WalkDir::new(folder_path).filter(|entry| async move {
-        match entry.file_type().await {
-            Ok(file_type) => {
-                if file_type.is_dir() {
-                    Filtering::Continue
-                } else {
-                    Filtering::Ignore
+    // 5 Level scan for now
+    // TODO: refactor
+    for entry in fs::read_dir(folder_path)? {
+        let entry = entry?;
+        let path = entry.path();
+
+        if path.is_dir() {
+            let mailbox_path = path.to_str().unwrap_or_default().to_string();
+            let mailbox_name = mailbox_path[folder_path.len()..].to_string();
+            log::debug!("L0 {} -> {}", mailbox_name, mailbox_path);
+            mailboxes.push((mailbox_name, mailbox_path.clone())); //remove clone after testing
+
+            for entry in fs::read_dir(&mailbox_path)? {
+                let entry = entry?;
+                let path = entry.path();
+
+                if path.is_dir() {
+                    let mailbox_path = path.to_str().unwrap_or_default().to_string();
+                    let mailbox_name = mailbox_path[folder_path.len()..].to_string();
+                    log::debug!("L1 {} -> {}", mailbox_name, mailbox_path);
+                    mailboxes.push((mailbox_name, mailbox_path.clone())); //remove clone after testing
+
+                    for entry in fs::read_dir(&mailbox_path)? {
+                        let entry = entry?;
+                        let path = entry.path();
+
+                        if path.is_dir() {
+                            let mailbox_path = path.to_str().unwrap_or_default().to_string();
+                            let mailbox_name = mailbox_path[folder_path.len()..].to_string();
+                            log::debug!("L2 {} -> {}", mailbox_name, mailbox_path);
+                            mailboxes.push((mailbox_name, mailbox_path.clone())); //remove clone after testing
+
+                            for entry in fs::read_dir(&mailbox_path)? {
+                                let entry = entry?;
+                                let path = entry.path();
+
+                                if path.is_dir() {
+                                    let mailbox_path =
+                                        path.to_str().unwrap_or_default().to_string();
+                                    let mailbox_name =
+                                        mailbox_path[folder_path.len()..].to_string();
+                                    log::debug!("L3 {} -> {}", mailbox_name, mailbox_path);
+                                    mailboxes.push((mailbox_name, mailbox_path.clone())); //remove clone after testing
+
+                                    for entry in fs::read_dir(&mailbox_path)? {
+                                        let entry = entry?;
+                                        let path = entry.path();
+
+                                        if path.is_dir() {
+                                            let mailbox_path =
+                                                path.to_str().unwrap_or_default().to_string();
+                                            let mailbox_name =
+                                                mailbox_path[folder_path.len()..].to_string();
+                                            log::debug!("L4 {} -> {}", mailbox_name, mailbox_path);
+                                            mailboxes.push((mailbox_name, mailbox_path));
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
                 }
             }
-            Err(_) => Filtering::Continue,
-        }
-    });
-
-    while !push_cancellation_token.is_cancelled() {
-        match entries.next().await {
-            Some(Ok(entry)) => {
-                let mailbox_path = entry.path().to_str().unwrap_or_default().to_string();
-                let mailbox_name = mailbox_path[folder_path.len()..].to_string();
-                mailboxes.push((mailbox_name, mailbox_path));
-            }
-            Some(Err(e)) => {
-                log::warn!("Error reading dir: {}", e);
-                break;
-            }
-            None => break,
         }
     }
 
@@ -98,6 +134,11 @@ pub async fn push(
         log::info!("Logged in as {}", email);
 
         for (mailbox_name, mailbox_path) in mailboxes {
+            if push_cancellation_token.is_cancelled() {
+                log::debug!("Cancelling...");
+                break;
+            }
+
             let mailbox_mapped_name = match imap_config.folder_name_mappings {
                 Some(ref folder_name_mappings) => {
                     if folder_name_mappings.contains_key(&mailbox_name) {
@@ -124,78 +165,71 @@ pub async fn push(
             imap_session.select(&mailbox_utf7_name).await?;
             log::debug!("Mailbox {mailbox_name} selected");
 
-            let mut entries = WalkDir::new(&mailbox_path).filter(|entry| async move {
-                match entry.file_type().await {
-                    Ok(file_type) => {
-                        if file_type.is_file() {
-                            if entry.path().extension() == Some("eml".as_ref())
-                                && entry
-                                    .path()
-                                    .file_name()
-                                    .unwrap_or_default()
-                                    .to_string_lossy()
-                                    .starts_with('.')
-                            {
-                                Filtering::Continue
-                            } else {
-                                Filtering::Ignore
-                            }
-                        } else {
-                            Filtering::IgnoreDir
-                        }
-                    }
-                    Err(_) => Filtering::Continue,
+            // Getting unread mails
+            let mut unsent_emails: Vec<(String, String)> = Vec::new();
+            for entry in fs::read_dir(&mailbox_path)? {
+                let path = entry?.path();
+
+                if path.is_dir() {
+                    continue;
                 }
-            });
+
+                let filename =
+                    path.to_string_lossy().to_string()[mailbox_path.len() + 1..].to_string();
+                if filename.starts_with(".")
+                    && path
+                        .extension()
+                        .is_some_and(|ext| ext.to_string_lossy() == "eml".to_string())
+                {
+                    unsent_emails.push((filename, path.to_string_lossy().to_string()));
+                }
+            }
+            unsent_emails.sort_by(|a, b| b.0.partial_cmp(&a.0).unwrap());
 
             let mut pushed_count = 0;
 
-            while !push_cancellation_token.is_cancelled() {
-                match entries.next().await {
-                    Some(Ok(entry)) => {
-                        let eml_file_path = entry.path().to_str().unwrap_or_default().to_string();
-                        let eml_file_name = eml_file_path[mailbox_path.len() + 1..].to_string();
-                        let message_id = eml_file_name
-                            .trim_start_matches('.')
-                            .trim_start_matches('0')
-                            .trim()
-                            .trim_end_matches(".eml");
+            for entry in unsent_emails {
+                if push_cancellation_token.is_cancelled() {
+                    log::debug!("Cancelling...");
+                    break;
+                }
 
-                        log::debug!(
-                            "Pushing message {} to {}...",
-                            message_id,
-                            mailbox_mapped_name
-                        );
+                let eml_file_name = entry.0;
+                let eml_file_path = entry.1;
+                let message_id = eml_file_name
+                    .trim_start_matches('.')
+                    .trim_start_matches('0')
+                    .trim()
+                    .trim_end_matches(".eml");
 
-                        let eml_data = fs::read(&eml_file_path).ok();
-                        if let Some(data) = eml_data {
-                            let size = data.len() as u32;
+                log::debug!(
+                    "Pushing message {} to {}...",
+                    message_id,
+                    mailbox_mapped_name
+                );
 
-                            match imap_session
-                                .append(&mailbox_utf7_name, Some(r"(\Seen)"), None, data)
-                                .await
-                            {
-                                Ok(_) => {
-                                    let eml_file_name = format!(".{:0>8}.eml", message_id);
-                                    let new_eml_file_name = format!("{:0>8}.eml", message_id);
-                                    let new_eml_file_path =
-                                        eml_file_path.replace(&eml_file_name, &new_eml_file_name);
-                                    fs::rename(eml_file_path, new_eml_file_path)?;
+                let eml_data = fs::read(&eml_file_path).ok();
+                if let Some(data) = eml_data {
+                    let size = data.len() as u32;
 
-                                    pushed_count += 1;
-                                    total_pushed_count += 1;
+                    match imap_session
+                        .append(&mailbox_utf7_name, Some(r"(\Seen)"), None, data)
+                        .await
+                    {
+                        Ok(_) => {
+                            let eml_file_name = format!(".{:0>8}.eml", message_id);
+                            let new_eml_file_name = format!("{:0>8}.eml", message_id);
+                            let new_eml_file_path =
+                                eml_file_path.replace(&eml_file_name, &new_eml_file_name);
+                            fs::rename(eml_file_path, new_eml_file_path)?;
 
-                                    log::debug!("{} sent ok", human_bytes(size));
-                                }
-                                Err(err) => log::debug!("Error pushing message: {}", err),
-                            };
+                            pushed_count += 1;
+                            total_pushed_count += 1;
+
+                            log::debug!("{} sent ok", human_bytes(size));
                         }
-                    }
-                    Some(Err(e)) => {
-                        log::warn!("Error reading dir: {}", e);
-                        break;
-                    }
-                    None => break,
+                        Err(err) => log::debug!("Error pushing message: {}", err),
+                    };
                 }
             }
             log::info!("Uploaded {pushed_count} messages to {mailbox_mapped_name}");

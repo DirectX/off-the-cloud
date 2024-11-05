@@ -2,9 +2,9 @@ use anyhow::Context;
 use args::{CommandType, OffTheCloudArgs};
 use clap::Parser;
 use config::Config;
-use imap::{pull::pull, push::push};
 
 pub mod args;
+pub mod caldav;
 pub mod config;
 pub mod imap;
 
@@ -32,23 +32,21 @@ async fn run() -> anyhow::Result<()> {
     match args.command {
         CommandType::Imap(imap_command) => match imap_command.subcommand {
             args::ImapSubcommand::Pull(imap_pull_subcommand) => {
-                pull(
+                imap::pull::pull(
                     &config,
                     imap_pull_subcommand.email,
                     imap_pull_subcommand.password,
                     imap_pull_subcommand.out_dir,
                     imap_pull_subcommand.export_mbox,
-                    parse_size::parse_size(&imap_pull_subcommand.max_file_size).context(
-                        format!(
-                            "malformed file size {:?}",
-                            imap_pull_subcommand.max_file_size
-                        ),
-                    )? as usize,
+                    parse_size::parse_size(&imap_pull_subcommand.max_file_size).context(format!(
+                        "malformed file size {:?}",
+                        imap_pull_subcommand.max_file_size
+                    ))? as usize,
                 )
                 .await?
             }
             args::ImapSubcommand::Push(imap_push_subcommand) => {
-                push(
+                imap::push::push(
                     &config,
                     imap_push_subcommand.email,
                     imap_push_subcommand.password,
@@ -56,6 +54,18 @@ async fn run() -> anyhow::Result<()> {
                 )
                 .await?
             }
+        },
+        CommandType::Caldav(caldav_command) => match caldav_command.subcommand {
+            args::CalDAVSubcommand::Pull(caldav_pull_subcommand) => {
+                caldav::pull::pull(
+                    &config,
+                    caldav_pull_subcommand.email,
+                    caldav_pull_subcommand.password,
+                    caldav_pull_subcommand.out_dir,
+                )
+                .await?
+            }
+            args::CalDAVSubcommand::Push(_cal_davpush_subcommand) => {}
         },
     }
 

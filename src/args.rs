@@ -9,8 +9,9 @@ pub struct OffTheCloudArgs {
 
 #[derive(Debug, Subcommand)]
 pub enum CommandType {
-    /// Shows current progress and completed spans
+    /// IMAP
     Imap(ImapCommand),
+    Caldav(CalDAVCommand),
 }
 
 #[derive(Debug, Args)]
@@ -56,5 +57,45 @@ pub struct ImapPushSubcommand {
     pub password: String,
     /// Input directory
     #[arg(long, default_value = "messages")]
+    pub in_dir: String,
+}
+
+#[derive(Debug, Args)]
+pub struct CalDAVCommand {
+    #[clap(subcommand)]
+    pub subcommand: CalDAVSubcommand,
+}
+
+#[derive(Debug, Subcommand)]
+pub enum CalDAVSubcommand {
+    /// Pulls data with CalDAV protocol
+    Pull(CalDAVPullSubcommand),
+    /// Pushes data with CalDAV protocol
+    Push(CalDAVPushSubcommand),
+}
+
+#[derive(Debug, Args)]
+pub struct CalDAVPullSubcommand {
+    /// E-mail
+    #[arg(long)]
+    pub email: String,
+    /// Password
+    #[arg(long)]
+    pub password: String,
+    /// Output directory
+    #[arg(long, default_value = "calendars")]
+    pub out_dir: String,
+}
+
+#[derive(Debug, Args)]
+pub struct CalDAVPushSubcommand {
+    /// E-mail
+    #[arg(long)]
+    pub email: String,
+    /// Password
+    #[arg(long)]
+    pub password: String,
+    /// Input directory
+    #[arg(long, default_value = "calendars")]
     pub in_dir: String,
 }

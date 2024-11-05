@@ -16,7 +16,20 @@ pub struct ImapConfig {
     pub push: Option<ImapServerConfig>,
 }
 
+#[derive(Debug, Deserialize, Clone)]
+pub struct CalDAVServerConfig {
+    pub server: String,
+    pub port: Option<u16>,
+}
+
+#[derive(Debug, Deserialize, Clone)]
+pub struct CalDAVConfig {
+    pub pull: Option<CalDAVServerConfig>,
+    pub push: Option<CalDAVServerConfig>,
+}
+
 #[derive(Debug, Deserialize)]
 pub struct Config {
     pub imap: Option<ImapConfig>,
+    pub caldav: Option<CalDAVConfig>
 }

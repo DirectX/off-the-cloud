@@ -10,3 +10,10 @@ imap:
     #   "Envoyés": "Sent"
     #   "Corbeille": "Trash"
     #   "Pourriel": "Junk"
+caldav:
+  pull:
+    server: calendar.example.com
+    port: 443
+  push:
+    server: calendar.example.com
+    port: 443
