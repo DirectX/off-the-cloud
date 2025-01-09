@@ -82,6 +82,9 @@ pub struct CalDAVPullSubcommand {
     /// Password
     #[arg(long)]
     pub password: String,
+    /// Calendar link
+    #[arg(long)]
+    pub link: Option<String>,
     /// Output directory
     #[arg(long, default_value = "calendars")]
     pub out_dir: String,

@@ -52,7 +52,7 @@ pub async fn push(
             let mailbox_path = path.to_str().unwrap_or_default().to_string();
             let mailbox_name = mailbox_path[folder_path.len()..].to_string();
             log::debug!("L0 {} -> {}", mailbox_name, mailbox_path);
-            mailboxes.push((mailbox_name, mailbox_path.clone())); //remove clone after testing
+            mailboxes.push((mailbox_name, mailbox_path.clone()));
 
             for entry in fs::read_dir(&mailbox_path)? {
                 let entry = entry?;
@@ -62,7 +62,7 @@ pub async fn push(
                     let mailbox_path = path.to_str().unwrap_or_default().to_string();
                     let mailbox_name = mailbox_path[folder_path.len()..].to_string();
                     log::debug!("L1 {} -> {}", mailbox_name, mailbox_path);
-                    mailboxes.push((mailbox_name, mailbox_path.clone())); //remove clone after testing
+                    mailboxes.push((mailbox_name, mailbox_path.clone()));
 
                     for entry in fs::read_dir(&mailbox_path)? {
                         let entry = entry?;
@@ -72,7 +72,7 @@ pub async fn push(
                             let mailbox_path = path.to_str().unwrap_or_default().to_string();
                             let mailbox_name = mailbox_path[folder_path.len()..].to_string();
                             log::debug!("L2 {} -> {}", mailbox_name, mailbox_path);
-                            mailboxes.push((mailbox_name, mailbox_path.clone())); //remove clone after testing
+                            mailboxes.push((mailbox_name, mailbox_path.clone()));
 
                             for entry in fs::read_dir(&mailbox_path)? {
                                 let entry = entry?;
@@ -84,7 +84,7 @@ pub async fn push(
                                     let mailbox_name =
                                         mailbox_path[folder_path.len()..].to_string();
                                     log::debug!("L3 {} -> {}", mailbox_name, mailbox_path);
-                                    mailboxes.push((mailbox_name, mailbox_path.clone())); //remove clone after testing
+                                    mailboxes.push((mailbox_name, mailbox_path.clone()));
 
                                     for entry in fs::read_dir(&mailbox_path)? {
                                         let entry = entry?;

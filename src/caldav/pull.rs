@@ -22,12 +22,13 @@ pub async fn pull(
     config: &Config,
     email: String,
     password: String,
+    link: Option<String>,
     out_dir: String,
 ) -> anyhow::Result<()> {
     let start = Instant::now();
 
     let cancellation_token = tokio_util::sync::CancellationToken::new();
-    let pull_cancellation_token = cancellation_token.clone();
+    let _pull_cancellation_token = cancellation_token.clone();
 
     tokio::spawn(async move {
         tokio::signal::ctrl_c().await.unwrap();
@@ -57,7 +58,7 @@ pub async fn pull(
     let client = Client::new();
     let caldav_host = caldav_config.server;
     let caldav_port = caldav_config.port.unwrap_or(443);
-    let caldav_url = format!("https://{caldav_host}:{caldav_port}");
+    let caldav_url = if link.is_some() { link.unwrap() } else { format!("https://{caldav_host}:{caldav_port}") };
     let username = email.clone();
     let password = password.clone();
     let body = r#"
@@ -71,6 +72,8 @@ pub async fn pull(
         "Basic {}",
         general_purpose::STANDARD.encode(format!("{}:{}", username, password)),
     );
+
+    log::debug!("Auth: {}", auth_value);
 
     let res = client
         .post(caldav_url)

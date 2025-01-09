@@ -61,6 +61,7 @@ async fn run() -> anyhow::Result<()> {
                     &config,
                     caldav_pull_subcommand.email,
                     caldav_pull_subcommand.password,
+                    caldav_pull_subcommand.link,
                     caldav_pull_subcommand.out_dir,
                 )
                 .await?
